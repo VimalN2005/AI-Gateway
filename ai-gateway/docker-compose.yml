@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+      - NLP_SERVICE_URL=http://nlp-service:5001
+      - VISION_SERVICE_URL=http://vision-service:5002
+      - EMBEDDING_SERVICE_URL=http://embedding-service:5003
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nlp-service:
+    build: ./services/nlp-service
+    ports:
+      - "5001:5001"
+    environment:
+      - SERVICE_PORT=5001
+    restart: unless-stopped
+
+  vision-service:
+    build: ./services/vision-service
+    ports:
+      - "5002:5002"
+    environment:
+      - SERVICE_PORT=5002
+    restart: unless-stopped
+
+  embedding-service:
+    build: ./services/embedding-service
+    ports:
+      - "5003:5003"
+    environment:
+      - SERVICE_PORT=5003
+    restart: unless-stopped
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_GATEWAY_URL=http://localhost:8000
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+volumes:
+  redis-data:
